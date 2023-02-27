@@ -4,7 +4,7 @@ use clap::Parser;
 use ipnet::IpNet;
 use reqwest::{ClientBuilder};
 use rocket::{
-    http::Status,
+    http::{Status, hyper::body},
     response::status::NotFound,
     serde::{json::Json, Deserialize, Serialize},
 };
@@ -97,10 +97,10 @@ async fn start_negotiation(remote_agent: Json<RemoteAgent>) -> Status {
         .await.unwrap();
 
     if response.status().is_success() {
-        let body: CIDR = response.json().await.unwrap();
-        println!("{:?}", body);
+        let b: CIDR = response.json().await.unwrap();
+        println!("{:?}", b);
 
-        Command::new("ip").arg("addr").arg("add").arg(body.free_ip.to_string()).arg("dev").arg("enp0s2").spawn().unwrap();
+        Command::new("ip").arg("addr").arg("add").arg(format!("{}/{}", b.free_ip.to_string(), b.net.prefix_len())).arg("dev").arg("enp0s2").spawn().unwrap();
         Status::Ok
     } else {
         Status::InternalServerError

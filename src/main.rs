@@ -1,10 +1,10 @@
-use std::{net::IpAddr, str::FromStr, time::Duration, process::Command};
+use std::{net::IpAddr, process::Command, str::FromStr, time::Duration};
 
 use clap::Parser;
 use ipnet::IpNet;
-use reqwest::{ClientBuilder};
+use reqwest::ClientBuilder;
 use rocket::{
-    http::{Status, hyper::body},
+    http::{hyper::body, Status},
     response::status::NotFound,
     serde::{json::Json, Deserialize, Serialize},
 };
@@ -72,8 +72,17 @@ fn handle_negotiation(remote_cidrs: Json<CIDRs>) -> Result<Json<CIDR>, NotFound<
     for remote in remotes {
         if safe_local_p2p_nets.contains(&remote) {
             let hosts = remote.hosts().collect::<Vec<IpAddr>>();
-            let _ip_to_assign_locally = hosts.get(0).unwrap();
+            let ip_to_assign_locally = hosts.get(0).unwrap();
             let free_ip = hosts.get(1).unwrap();
+
+            Command::new("ip")
+                .arg("addr")
+                .arg("add")
+                .arg(format!("{}/30", ip_to_assign_locally.to_string()))
+                .arg("dev")
+                .arg("enp0s2")
+                .spawn()
+                .unwrap();
 
             return Ok(rocket::serde::json::Json(CIDR::new(remote, *free_ip)));
         }
@@ -84,23 +93,41 @@ fn handle_negotiation(remote_cidrs: Json<CIDRs>) -> Result<Json<CIDR>, NotFound<
 
 #[post("/start_negotiation", data = "<remote_agent>")]
 async fn start_negotiation(remote_agent: Json<RemoteAgent>) -> Status {
-
     let safe_local_cidrs = unsafe { LOCAL_CIDRS.clone() };
 
     let timeout = Duration::new(5, 0);
     let client = ClientBuilder::new().timeout(timeout).build().unwrap();
-    let cidrs: Vec<String> = safe_local_cidrs.iter().map(|cidr| { cidr.to_string() }).collect();
+    let cidrs: Vec<String> = safe_local_cidrs
+        .iter()
+        .map(|cidr| cidr.to_string())
+        .collect();
     let response = client
         .post(&remote_agent.endpoint)
         .json(&CIDRs::new(cidrs))
         .send()
-        .await.unwrap();
+        .await
+        .unwrap();
 
     if response.status().is_success() {
         let b: CIDR = response.json().await.unwrap();
         println!("{:?}", b);
 
-        Command::new("ip").arg("addr").arg("add").arg(format!("{}/{}", b.free_ip.to_string(), b.net.prefix_len())).arg("dev").arg("enp0s2").spawn().unwrap();
+        let taken = b.net.hosts().collect::<Vec<IpAddr>>();
+
+        Command::new("ip")
+            .arg("addr")
+            .arg("add")
+            .arg(format!("{}/30", b.free_ip.to_string()))
+            .arg("dev")
+            .arg("enp0s2")
+            .spawn()
+            .unwrap();
+        Command::new("ping")
+            .arg("-c")
+            .arg("3")
+            .arg(taken.get(0).unwrap().to_string())
+            .spawn()
+            .unwrap();
         Status::Ok
     } else {
         Status::InternalServerError

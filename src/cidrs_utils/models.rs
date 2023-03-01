@@ -7,7 +7,7 @@ use rocket::serde::{Deserialize, Serialize};
 #[serde(crate = "rocket::serde")]
 pub struct NegotiationRequest {
     pub cidrs: Vec<String>,
-    pub destination_network: Option<String>
+    pub destination_network: Option<IpNet>
 }
 
 #[derive(Deserialize, Serialize, Debug, Copy, Clone)]
@@ -15,6 +15,7 @@ pub struct NegotiationRequest {
 pub struct NegotiationResponse {
     net: IpNet,
     pub free_ip: IpAddr,
+    pub destionation_network: Option<IpNet>
 }
 
 impl NegotiationRequest {
@@ -25,6 +26,6 @@ impl NegotiationRequest {
 
 impl NegotiationResponse {
   pub fn new(net: IpNet, free_ip: IpAddr) -> Self {
-      NegotiationResponse { net, free_ip }
+      NegotiationResponse { net, free_ip, destionation_network: None }
   }
 }

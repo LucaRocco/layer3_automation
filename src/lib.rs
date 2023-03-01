@@ -1,7 +1,7 @@
 mod cidrs_utils;
 
 use crate::cidrs_utils::{address_parser, models::{NegotiationRequest, NegotiationResponse}};
-use std::{net::IpAddr, process::Command};
+use std::{net::IpAddr, process::Command, fmt::format};
 
 use cidrs_utils::parse_to_p2p_nets;
 use clap::Parser;
@@ -57,6 +57,17 @@ pub fn handle_negotiation(remote_cidrs: Json<NegotiationRequest>) -> Result<Json
                 .arg("enp0s2")
                 .spawn()
                 .unwrap();
+
+            if let Some(destination_network) = &remote_cidrs.destination_network {
+                Command::new("ip")
+                .arg("route")
+                .arg("add")
+                .arg(destination_network.to_string())
+                .arg("via")
+                .arg(ip_to_assign_locally.to_string())
+                .spawn()
+                .unwrap();
+            }
             info!("Done! Router configured");
 
             return Ok(rocket::serde::json::Json(NegotiationResponse::new(remote, *free_ip)));
@@ -99,6 +110,17 @@ pub async fn start_negotiation(remote_agent: Json<RemoteAgent>) -> Status {
             .arg("enp0s2")
             .spawn()
             .unwrap();
+
+        if let Some(destination_network) = &b.destionation_network {
+            Command::new("ip")
+                .arg("router")
+                .arg("add")
+                .arg(destination_network.to_string())
+                .arg("via")
+                .arg(b.free_ip.to_string())
+                .spawn()
+                .unwrap();
+        }
 
         Status::Ok
     } else {

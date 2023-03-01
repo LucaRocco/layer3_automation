@@ -1,7 +1,7 @@
 mod cidrs_utils;
 
 use crate::cidrs_utils::{address_parser, models::{NegotiationRequest, NegotiationResponse}};
-use std::{net::IpAddr, process::Command, fmt::format};
+use std::{net::IpAddr, process::Command};
 
 use cidrs_utils::parse_to_p2p_nets;
 use clap::Parser;
@@ -19,18 +19,23 @@ extern crate rocket;
 
 static mut LOCAL_P2P_NETS: Vec<IpNet> = Vec::new();
 static mut LOCAL_CIDRS: Vec<IpNet> = Vec::new();
+static mut INTERNAL_LOCAL_NETWORK: Option<IpNet> = None;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
     #[clap(short, long, value_parser = address_parser)]
     cidrs: Vec<IpNet>,
+
+    #[clap(short, long)]
+    internal_network: Option<IpNet>
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(crate = "rocket::serde")]
-pub struct RemoteAgent {
+pub struct NegotiationInformation {
     endpoint: String,
+    destination_network: Option<IpNet>
 }
 
 #[post("/handle_negotiation", data = "<remote_cidrs>")]
@@ -70,7 +75,9 @@ pub fn handle_negotiation(remote_cidrs: Json<NegotiationRequest>) -> Result<Json
             }
             info!("Done! Router configured");
 
-            return Ok(rocket::serde::json::Json(NegotiationResponse::new(remote, *free_ip)));
+            let safe_internal_network = unsafe { INTERNAL_LOCAL_NETWORK.clone() };
+
+            return Ok(rocket::serde::json::Json(NegotiationResponse::new(remote, *free_ip, safe_internal_network)));
         }
     }
 
@@ -79,7 +86,7 @@ pub fn handle_negotiation(remote_cidrs: Json<NegotiationRequest>) -> Result<Json
 }
 
 #[post("/start_negotiation", data = "<remote_agent>")]
-pub async fn start_negotiation(remote_agent: Json<RemoteAgent>) -> Status {
+pub async fn start_negotiation(remote_agent: Json<NegotiationInformation>) -> Status {
     info!("A request for starting a negotiation session has been received with the request: {:?}", remote_agent);
     let safe_local_cidrs = unsafe { LOCAL_CIDRS.clone() };
 
@@ -93,7 +100,7 @@ pub async fn start_negotiation(remote_agent: Json<RemoteAgent>) -> Status {
 
     let response = client
         .post(&remote_agent.endpoint)
-        .json(&NegotiationRequest::new(cidrs))
+        .json(&NegotiationRequest::new(cidrs, remote_agent.destination_network))
         .send()
         .await
         .unwrap();
@@ -111,9 +118,10 @@ pub async fn start_negotiation(remote_agent: Json<RemoteAgent>) -> Status {
             .spawn()
             .unwrap();
 
-        if let Some(destination_network) = &b.destionation_network {
+        if let Some(destination_network) = &b.destination_network {
+            info!("The request contains a destination retwork, configuring a route for it");
             Command::new("ip")
-                .arg("router")
+                .arg("route")
                 .arg("add")
                 .arg(destination_network.to_string())
                 .arg("via")
@@ -137,8 +145,11 @@ pub fn parse_args() {
         .flat_map(|cidr| cidr.subnets(30).unwrap().collect::<Vec<IpNet>>())
         .collect();
 
-    println!("{:?}", point_to_point_nets);
+    if let Some(internal_network) = cli.internal_network {
+        unsafe { INTERNAL_LOCAL_NETWORK = Some(internal_network); }
+    }
 
+    info!("Args parsed. Internal Network: {:?}, CIDRs: {:?}", cli.internal_network, cli.cidrs);
     unsafe {
         LOCAL_CIDRS = cli.cidrs;
         LOCAL_P2P_NETS = point_to_point_nets;

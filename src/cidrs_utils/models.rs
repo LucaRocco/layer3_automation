@@ -15,17 +15,17 @@ pub struct NegotiationRequest {
 pub struct NegotiationResponse {
     net: IpNet,
     pub free_ip: IpAddr,
-    pub destionation_network: Option<IpNet>
+    pub destination_network: Option<IpNet>
 }
 
 impl NegotiationRequest {
-  pub fn new(cidrs: Vec<String>) -> Self {
-      NegotiationRequest { cidrs, destination_network: None }
+  pub fn new(cidrs: Vec<String>, destination_network: Option<IpNet>) -> Self {
+      NegotiationRequest { cidrs, destination_network }
   }
 }
 
 impl NegotiationResponse {
-  pub fn new(net: IpNet, free_ip: IpAddr) -> Self {
-      NegotiationResponse { net, free_ip, destionation_network: None }
+  pub fn new(net: IpNet, free_ip: IpAddr, destination_network: Option<IpNet>) -> Self {
+      NegotiationResponse { net, free_ip, destination_network }
   }
 }

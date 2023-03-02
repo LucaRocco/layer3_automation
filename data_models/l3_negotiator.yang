@@ -1,0 +1,129 @@
+module l3_negotiator {
+    yang-version 1;
+
+    namespace "https://www.top-ix.org/yang_modules/l3_negotiator";
+
+    prefix if;
+
+    organization
+      "Top-IX";
+
+    contact
+      "Support: <luca.rocco@top-ix.org>";
+
+    description
+      "This YANG module has been created to describe the data models of a layer 3 negotiator";
+
+    revision "2020-01-03" {
+        description
+          "First Revision";
+
+        reference
+          "Thesis or Luca Rocco - Top-IX 2022/2023";
+    }
+
+    typedef cidr {
+        type string {
+            pattern
+              '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+                + '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]).*';
+        }
+
+        description
+          "a datatype to validate IPv4 addresses";
+    }
+
+    typedef ipv4 {
+        type string {
+            pattern
+              '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+                + '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])';
+        }
+
+        description
+          "a datatype to validate IPv4 addresses";
+    }
+
+    container cli {
+        list cidrs {
+            key "cidr";
+
+            leaf cidr {
+                type cidr;
+                description "available cidrs to use during negotiation processes";
+            }
+        }
+
+        leaf internal_network {
+            type cidr;
+            description "internal network where the bought services will be placed";
+        }
+    }
+
+    rpc start_negotiation {
+        description "This service is called to start a new negotiation. The service receives the endpoint
+                    of the remote l3 negotiator";
+
+        input {
+            leaf endpoint {
+                type string;
+                mandatory true;
+                description "URL to the remote l3 negotiator to reach to start the negotiation process";
+            }
+
+            leaf destination_network {
+                type cidr;
+                description 'The remote l3 negotiator should configure a route to reach the destination network.'
+                            + 'The implementation of this configuration varies based on the network topology';
+            }
+        }
+    }
+
+    rpc handle_negotiation {
+        description "This service is called by another l3 negotiator. It is basically the negotiation request.
+                    The negotiator that receives a request of handling will check if one of its local cidrs
+                    is equal to one of the remote cidrs received in the request then it will chose a /30 out of
+                    the common cidr.";
+
+        input {
+            list cidrs {
+                key "value";
+
+                leaf value {
+                    type cidr;
+                    description "current available cidr";
+                }
+            }
+
+            leaf destination_network {
+                type cidr;
+                description "This is the network that the remote l3 negotiator should make reachable by adding
+                            appropriate routing rules on its network device.";
+            }
+        }
+
+        output {
+            leaf net {
+                type cidr;
+                mandatory true;
+                description "This is the chosen /30 net";
+            }
+
+            leaf free_ip {
+                type ipv4;
+                mandatory true;
+                description "This is the available ip of the /30 chosen network. The l3 negotiator that issues this response
+                            will also configure on its network device one of the two ips and includes the free one in the response
+                            so that the l3 negotiator that receives the response know what ip is still free";
+            }
+
+            leaf destination_network {
+            type cidr;
+            description 'In this case, the destination network refers to the pre-configured internal network
+                        of the l3 negotiator that is currently handling the negotiation. The destination 
+                        network is included in the request only if it was properly configured at the start-up 
+                        time using the appropriate command line argument';
+            }
+        }
+    }
+}

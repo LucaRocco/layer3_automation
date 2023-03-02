@@ -20,6 +20,7 @@ extern crate rocket;
 static mut LOCAL_P2P_NETS: Vec<IpNet> = Vec::new();
 static mut LOCAL_CIDRS: Vec<IpNet> = Vec::new();
 static mut INTERNAL_LOCAL_NETWORK: Option<IpNet> = None;
+static mut INTERFACE: Option<String> = None;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -28,7 +29,10 @@ struct Cli {
     cidrs: Vec<IpNet>,
 
     #[clap(short, long)]
-    internal_network: Option<IpNet>
+    internal_network: Option<IpNet>,
+
+    #[clap(short, long)]
+    interface: Option<String>
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -59,7 +63,7 @@ pub fn handle_negotiation(remote_cidrs: Json<NegotiationRequest>) -> Result<Json
                 .arg("add")
                 .arg(format!("{}/30", ip_to_assign_locally.to_string()))
                 .arg("dev")
-                .arg("enp0s2")
+                .arg(unsafe { INTERFACE.clone() }.unwrap_or(String::from("enp0s2")))
                 .spawn()
                 .unwrap();
 
@@ -114,7 +118,7 @@ pub async fn start_negotiation(remote_agent: Json<NegotiationInformation>) -> St
             .arg("add")
             .arg(format!("{}/30", b.free_ip.to_string()))
             .arg("dev")
-            .arg("enp0s2")
+            .arg(unsafe { INTERFACE.clone() }.unwrap_or(String::from("enp0s2")))
             .spawn()
             .unwrap();
 
@@ -147,6 +151,10 @@ pub fn parse_args() {
 
     if let Some(internal_network) = cli.internal_network {
         unsafe { INTERNAL_LOCAL_NETWORK = Some(internal_network); }
+    }
+
+    if let Some(interface) = cli.interface {
+        unsafe { INTERFACE = Some(interface) };
     }
 
     info!("Args parsed. Internal Network: {:?}, CIDRs: {:?}", cli.internal_network, cli.cidrs);

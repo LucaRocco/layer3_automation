@@ -15,6 +15,7 @@ pub struct NegotiationRequest {
 pub struct NegotiationResponse {
     net: IpNet,
     pub free_ip: IpAddr,
+    pub assigned_ip: IpAddr,
     pub destination_network: Option<IpNet>
 }
 
@@ -25,7 +26,7 @@ impl NegotiationRequest {
 }
 
 impl NegotiationResponse {
-  pub fn new(net: IpNet, free_ip: IpAddr, destination_network: Option<IpNet>) -> Self {
-      NegotiationResponse { net, free_ip, destination_network }
+  pub fn new(net: IpNet, free_ip: IpAddr, assigned_ip: IpAddr, destination_network: Option<IpNet>) -> Self {
+      NegotiationResponse { net, free_ip, assigned_ip, destination_network }
   }
 }

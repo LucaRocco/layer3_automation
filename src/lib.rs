@@ -31,7 +31,7 @@ struct Cli {
     #[clap(short, long)]
     internal_network: Option<IpNet>,
 
-    #[clap(short, long)]
+    #[clap(long)]
     interface: Option<String>
 }
 
@@ -73,7 +73,7 @@ pub fn handle_negotiation(remote_cidrs: Json<NegotiationRequest>) -> Result<Json
                 .arg("add")
                 .arg(destination_network.to_string())
                 .arg("via")
-                .arg(ip_to_assign_locally.to_string())
+                .arg(free_ip.to_string())
                 .spawn()
                 .unwrap();
             }
@@ -81,7 +81,7 @@ pub fn handle_negotiation(remote_cidrs: Json<NegotiationRequest>) -> Result<Json
 
             let safe_internal_network = unsafe { INTERNAL_LOCAL_NETWORK.clone() };
 
-            return Ok(rocket::serde::json::Json(NegotiationResponse::new(remote, *free_ip, safe_internal_network)));
+            return Ok(rocket::serde::json::Json(NegotiationResponse::new(remote, *free_ip, *ip_to_assign_locally, safe_internal_network)));
         }
     }
 
@@ -129,7 +129,7 @@ pub async fn start_negotiation(remote_agent: Json<NegotiationInformation>) -> St
                 .arg("add")
                 .arg(destination_network.to_string())
                 .arg("via")
-                .arg(b.free_ip.to_string())
+                .arg(b.assigned_ip.to_string())
                 .spawn()
                 .unwrap();
         }
